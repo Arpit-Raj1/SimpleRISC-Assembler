@@ -67,7 +67,9 @@ def init():
 
 def remove_comments(line):
     line = line.split("//")[0].strip()
-    return line.split(";")[0].strip()
+    line.split(";")[0].strip()
+
+    return line.replace(",", " ")
 
 
 def parse_label_and_rest(line):
