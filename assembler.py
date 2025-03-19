@@ -3,6 +3,7 @@ opcode = {}
 registers = {}
 labels = {}
 loops = {}
+pc = 0x00000
 
 
 def init():
@@ -70,6 +71,17 @@ def parse_label_and_rest(line):
     return None, line.strip()
 
 
+"""Relative Address"""
+
+
+def relative_address(label):
+    global labels, pc
+    if label not in labels:
+        return f"ERROR: Label {label} not defined"
+    address = labels[label]
+    return format(parse_immediate(address - pc), "016b")
+
+
 """Parsing intermediate"""
 
 
@@ -106,7 +118,7 @@ def one_address_instruction(inst, label):
     if label not in labels:
         return f"ERROR: Label {label} not defined"
     address = labels[label]
-    bin_instr += format(parse_immediate(address), "027b")
+    bin_instr += format(parse_immediate(relative_address(address)), "027b")
 
     return bin_instr
 
@@ -122,7 +134,7 @@ def three_address_instruction(inst, RI_Type, dst, src1, src2, modifier):
     bin_instr += registers[src1]
     if RI_Type == 1:
         bin_instr += modifier
-        bin_instr += format(parse_immediate(src2), "016b")
+        bin_instr += format(parse_immediate(relative_address(src2)), "016b")
     else:
         bin_instr += registers[src2]
     while len(bin_instr) != 32:
@@ -148,7 +160,7 @@ def two_address_instruction(inst, RI_Type, rs1, rs2):
         bin_instr += "0000"
 
     if RI_Type == 1:
-        bin_instr += format(parse_immediate(rs2), "018b")
+        bin_instr += format(parse_immediate(relative_address(rs2)), "018b")
     else:
         bin_instr += registers[rs2]
 
@@ -168,7 +180,7 @@ def load_store_instruction(inst, address, rd, rs1, imm):
     bin_instr += registers[rd]
     bin_instr += registers[rs1]
     if address == 1:
-        bin_instr += format(parse_immediate(imm), "018b")
+        bin_instr += format(parse_immediate(relative_address(imm)), "018b")
     else:
         bin_instr += registers[imm]
 
@@ -195,6 +207,8 @@ def assemble_line(line):
     if not parts:
         return ""
 
+    pc = pc + 1
+
     inst = parts[0].upper()
     operands = parts[1:]
     modifier = "00"
@@ -213,7 +227,6 @@ def assemble_line(line):
     if inst not in opcode:
         return f"ERROR: Unknown opcode {inst}"
 
-    bin_instr = opcode[inst]
     if inst in ["CALL", "B", "BEQ", "BGT"]:
         return one_address_instruction(inst, operands[0])
 
