@@ -1,6 +1,6 @@
 
-    start:mov r1, 10 
-    mov r2, 20 
+    start:mov r1,10 
+    mov r2,20 
     add r3, r1, r2
     sub r4, r3, 5
     mul r5, r4, 2 

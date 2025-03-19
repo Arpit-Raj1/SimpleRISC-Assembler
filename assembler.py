@@ -3,7 +3,7 @@ opcode = {}
 registers = {}
 labels = {}
 loops = {}
-pc = 0x00000
+pc = 0
 
 
 def init():
@@ -71,40 +71,44 @@ def parse_label_and_rest(line):
     return None, line.strip()
 
 
+def handle_twos_complement(num, bits):
+    if num < 0:
+        num = (1 << int(bits)) + num
+    return num
+
+
 """Relative Address"""
 
 
-def relative_address(label):
+def relative_address(address, bits):
     global labels, pc
-    if label not in labels:
-        return f"ERROR: Label {label} not defined"
-    address = labels[label]
-    return format(parse_immediate(address - pc), "016b")
+    offset = address - pc
+    return format(handle_twos_complement(offset, bits), f"0{bits}b")
 
 
 """Parsing intermediate"""
 
 
-def parse_immediate(imm_str):
+def parse_immediate(imm_str, bits):
     imm_str = str(imm_str)
     if imm_str.startswith("0x") or imm_str.startswith("0X"):
-        return int(imm_str, 16)
+        return handle_twos_complement(int(imm_str, 16), bits)
     elif imm_str.startswith("0b") or imm_str.startswith("0B"):
-        return int(imm_str, 2)
+        return handle_twos_complement(int(imm_str, 2), bits)
     elif imm_str.startswith("0o") or imm_str.startswith("0O"):
-        return int(imm_str, 8)
+        return handle_twos_complement(int(imm_str, 8), bits)
     else:
-        return int(imm_str, 10)  # default is decimal
+        return handle_twos_complement(int(imm_str, 10), bits)  # default is decimal
 
 
 # Look for Label and Loops
 def look_for_loops_or_labels(lines):
     global labels, loops
-    instruction_address = 0x00000
+    instruction_address = 0
     for line in lines:
         label, inst = parse_label_and_rest(line)
         if label:
-            labels[label] = format(parse_immediate(instruction_address), "05b")
+            labels[label] = instruction_address
         if inst:
             instruction_address += 1
 
@@ -118,7 +122,7 @@ def one_address_instruction(inst, label):
     if label not in labels:
         return f"ERROR: Label {label} not defined"
     address = labels[label]
-    bin_instr += format(parse_immediate(relative_address(address)), "027b")
+    bin_instr += relative_address(address, 27)
 
     return bin_instr
 
@@ -134,7 +138,7 @@ def three_address_instruction(inst, RI_Type, dst, src1, src2, modifier):
     bin_instr += registers[src1]
     if RI_Type == 1:
         bin_instr += modifier
-        bin_instr += format(parse_immediate(relative_address(src2)), "016b")
+        bin_instr += format(parse_immediate(src2, 16), "016b")
     else:
         bin_instr += registers[src2]
     while len(bin_instr) != 32:
@@ -160,7 +164,7 @@ def two_address_instruction(inst, RI_Type, rs1, rs2):
         bin_instr += "0000"
 
     if RI_Type == 1:
-        bin_instr += format(parse_immediate(relative_address(rs2)), "018b")
+        bin_instr += format(parse_immediate(rs2, 18), "018b")
     else:
         bin_instr += registers[rs2]
 
@@ -176,11 +180,11 @@ def two_address_instruction(inst, RI_Type, rs1, rs2):
 def load_store_instruction(inst, address, rd, rs1, imm):
     global labels, loops, registers, opcode
     bin_instr = opcode[inst]
-    bin_instr += format(parse_immediate(address), "01b")
+    bin_instr += format(parse_immediate(address, 1), "01b")
     bin_instr += registers[rd]
     bin_instr += registers[rs1]
     if address == 1:
-        bin_instr += format(parse_immediate(relative_address(imm)), "018b")
+        bin_instr += format(parse_immediate(imm, 18), "018b")
     else:
         bin_instr += registers[imm]
 
@@ -198,7 +202,7 @@ def zero_address_instruction(inst):
 
 
 def assemble_line(line):
-    global opcode, registers, labels, loops
+    global opcode, registers, labels, loops, pc
     label, inst = parse_label_and_rest(line)
     if not inst:
         return ""
@@ -277,7 +281,6 @@ def main(ip_file, op_file):
 
     machine_code = []
     for line in lines:
-        line = remove_comments(line)
         line = remove_comments(line)
         print(line)
         machine_code_line = assemble_line(line)
